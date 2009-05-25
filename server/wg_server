@@ -1,0 +1,96 @@
+#!/usr/bin/perl -w
+use strict;
+use Storable;
+use MIME::Base64;
+use Socket;
+use Sys::Syslog;
+#use XMLServer;
+use Carp;
+use Data::Dump qw/dump/;
+use threads;
+use threads::shared;
+use constant DEBUG=>1;
+BEGIN{
+    openlog 'webpidgin-server','','';
+    $SIG{__WARN__}=sub{
+	syslog 'info', join '',@_;
+    }
+}    
+exit 255 unless @ARGV==1;
+unless (DEBUG){
+    close STDOUT;
+    close STDERR;
+    open STDERR, ">>","/var/log/webpidgin/server.$ARGV[0].debug.log";
+    exit if fork;
+}
+our @clients;
+share(@clients);
+use DBI;
+use Data::Dumper;
+my @threads;
+share(@threads);
+my $dbh=DBI->connect('dbi:mysql:database=webpidgin','root',undef,{auto_reconnect=>1,RaiseError=>1});
+our $user;
+my $child;
+#    foreach my $data (@data){
+$user=$ARGV[0];
+syslog "info", "Started for $user";
+share($user);
+my $dt=threads->new(sub{
+    require XMLServer;
+});
+
+my $EOL = "\015\012";
+sub logmsg { syslog 'info', join '',@_ }
+my $port = 3000;
+my $proto = getprotobyname('tcp');
+($port) = $port =~ /^(\d+)$/                        or die "invalid port";
+$port+=$user;
+#async sub{
+socket(Server, PF_INET, SOCK_STREAM, $proto)        || die "socket: $!";
+setsockopt(Server, SOL_SOCKET, SO_REUSEADDR,
+pack("l", 1))   || die "setsockopt: $!";
+bind(Server, sockaddr_in($port, INADDR_ANY))        || die "bind: $!";
+listen(Server,SOMAXCONN)                            || die "listen: $!";
+logmsg "server started on port $port";
+my $paddr;
+$SIG{CHLD} = 'IGNORE';
+our @localclients;
+
+while ( $paddr = accept($localclients[@localclients],Server)) {
+#sleep 1000000;
+#sleep 10000;
+
+#   print "aaa\n";
+   my($port,$iaddr) = sockaddr_in($paddr);
+   my $name = gethostbyaddr($iaddr,AF_INET);
+#		$|=1;
+    local $\="\x00";
+    local $/="\x00";
+    local $SIG{ALRM}=sub{die "Alarm"};
+    alarm (10);
+    my $uid=1;
+    eval{
+	*Client=$localclients[-1];
+	$uid=<Client>;
+	chomp($uid);
+    };
+	alarm 0;
+    my $email;
+    $email=Storable::thaw(MIME::Base64::decode($dbh->selectrow_array('SELECT session_data FROM sessions WHERE id=?',undef,"session:$uid")))->{__user};
+    if ($@ || !($uid && (my $uid=$dbh->selectrow_array('SELECT id FROM users WHERE email=?',undef,$email)))){
+	warn $@;
+	close $localclients[-1];
+	delete $localclients[-1];
+	next;
+    }
+   syslog "info", "connection from $name [".   inet_ntoa($iaddr). "] at port $port";
+    use Data::Dumper;
+    my $str=fileno($localclients[@localclients-1]);
+    push @clients,share($str);
+#   print "bbb\n";
+
+
+}
+
+#};
