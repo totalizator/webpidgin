@@ -1,0 +1,7 @@
+---
+name: Pidgin::Web
+prefs: /webpidgin
+cache:
+  debug: 0
+  servers:
+    - 127.0.0.1:11211

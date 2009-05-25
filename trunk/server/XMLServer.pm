@@ -1,0 +1,68 @@
+#!/usr/bin/perl
+use warnings;
+use strict;
+package XMLServer;
+#use base qw(Net::Server);
+use strict;
+use lib '../lib';
+use Net::Server;
+use Net::DBus::Reactor;
+use Net::DBus::Callback;
+use Net::DBus;
+use Pidgin::Web::Server;
+use DBusHack;
+use Sys::Syslog;
+use Data::Dumper;
+our $run=0;
+our $client;
+our $select;
+$SIG{PIPE} = sub{warn "client disconnected"};
+sub process_request {
+#warn Dumper \%ENV;
+my $bus=Net::DBus->find;
+#my $pidgin=$bus->get_service('im.pidgin.purple.PurpleService')->get_object("/im/pidgin/purple/PurpleObject","im.pidgin.purple.PurpleInterface");
+my $user= $main::user;
+our $pidgin=$bus->get_service('im.pidgin.purple.PurpleService'.$user)->get_object("/im/pidgin/purple/PurpleObject","im.pidgin.purple.PurpleInterface");
+#	our $pidgin=$bus->get_service('im.pidgin.purple.PurpleService')->get_object("/im/pidgin/purple/PurpleObject".$main::user);
+#$pidgin=$pidgin->as_interface("im.pidgin.purple.PurpleInterface");
+my $reactor = Net::DBus::Reactor->main();
+#$pidgin->connect_to_signal("WroteImMsg", \&Pidgin::Web::Server::WroteImMsg);
+$pidgin->connect_to_signal("WroteImMsg", \&Pidgin::Web::Server::WroteImMsg);
+$pidgin->connect_to_signal("WroteChatMsg", \&Pidgin::Web::Server::WroteChatMsg);
+$pidgin->connect_to_signal("BuddyStatusChanged", \&Pidgin::Web::Server::BuddyStatusChanged);
+$pidgin->connect_to_signal("BuddySignedOn", \&Pidgin::Web::Server::BuddySignedOn);
+$pidgin->connect_to_signal("BuddySignedOff", \&Pidgin::Web::Server::BuddySignedOff);
+$pidgin->connect_to_signal("ConversationCreated", \&Pidgin::Web::Server::ConversationCreated);
+$pidgin->connect_to_signal("DeletingConversation", \&Pidgin::Web::Server::DeletingConversation);
+#$pidgin->connect_to_signal("ChatBuddyJoined", );
+$pidgin->connect_to_signal("ChatBuddyJoined", \&Pidgin::Web::Server::ChatBuddyJoined);
+$pidgin->connect_to_signal("ChatBuddyLeft", \&Pidgin::Web::Server::ChatBuddyLeft);
+$pidgin->connect_to_signal("DisplayingUserinfo", \&Pidgin::Web::Server::DisplayingUserinfo);
+#$pidgin->connect_to_signal("BuddySignedOff", \&Pidgin::Web::Server::BuddySignedOff);
+#$pidgin->connect_to_signal("BuddySignedOff", \&Pidgin::Web::Server::BuddySignedOff);
+#$pidgin->connect_to_signal("BuddySignedOff", \&Pidgin::Web::Server::BuddySignedOff);
+#$pidgin->connect_to_signal("BuddySignedOff", \&Pidgin::Web::Server::BuddySignedOff);
+#1;2#B$pidgin->connect_to_signal("BuddySignedOff", \&Pidgin::Web::Server::BuddySignedOff);
+#$pidgin->connect_to_signal("BuddySignedOff", \&Pidgin::Web::Server::BuddySignedOff);
+#$pidgin->connect_to_signal("BuddySignedOff", \&Pidgin::Web::Server::BuddySignedOff);
+#$pidgin->connect_to_signal("BuddySignedOff", \&Pidgin::Web::Server::BuddySignedOff);
+#$pidgin->connect_to_signal("BuddySignedOff", \&Pidgin::Web::Server::BuddySignedOff);
+#$pidgin->connect_to_signal("BuddySignedOff", \&Pidgin::Web::Server::BuddySignedOff);
+#$pidgin->connect_to_signal("BuddySignedOff", \&Pidgin::Web::Server::BuddySignedOff);
+my $fd;
+    my $self = shift;
+#	eval{
+    $client=$self;
+    $select=shift;
+    $|=1;
+    $/="\x00";
+    $\="\x00";
+    warn "Client connected";
+    $reactor->run();
+    warn "Client disconnected";
+#	};
+#	die if $@;
+}
+				    
+#XMLServer->run(port => 3001);
+1;
